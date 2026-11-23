@@ -42,7 +42,7 @@ const label=l=>[productSymbol(l.p,l.frozen),catalog[l.p][0]].filter(Boolean).joi
 const sellUnit=l=>l.frozen?'包':catalog[l.p][2];
 const total=o=>o.lines.reduce((s,l)=>s+(l.free?0:catalog[l.p][1]*factor(l)*l.q),0);
 const order=()=>db.orders.find(o=>o.id===current);
-const occupied=o=>!o.cancelled&&(!o.method||o.lines.some(l=>l.given<l.q));
+const occupied=o=>!o.cancelled&&o.lines.length>0&&(!o.method||o.lines.some(l=>l.given<l.q));
 const remaining=p=>db.stock[p]-db.orders.filter(o=>o.reserved&&!o.method&&!o.cancelled).flatMap(o=>o.lines).reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0);
 function tell(s){notice.textContent=s}
 function save(){localStorage.setItem(key,JSON.stringify(db));render()}
@@ -52,7 +52,7 @@ function show(p){
  }
  page=p;foc=false;tell('');render();
 }
-function openSlot(n){let o=db.orders.find(x=>x.slot===n&&occupied(x));if(!o){o={id:Date.now().toString(36)+Math.random().toString(36).slice(2),slot:n,lines:[],history:[]};db.orders.push(o)}current=o.id;filter='all';show('order');save()}
+function openSlot(n){let o=db.orders.find(x=>x.slot===n&&occupied(x))||db.orders.find(x=>x.slot===n&&!x.cancelled&&!x.method&&!x.lines.length);if(!o){o={id:Date.now().toString(36)+Math.random().toString(36).slice(2),slot:n,lines:[],history:[]};db.orders.push(o)}if(!o.lines.length){delete o.startedAt;o.reserved=false}current=o.id;filter='all';show('order');save()}
 function state(o){return o.method?(o.lines.every(l=>l.given===l.q)?'已付款 · 已取餐':'已付款 · 待取餐'):o.reserved?'未付款 · 已预留':'未付款 · 点单中'}
 function waitText(start,now=Date.now()){
  const minutes=Math.max(0,Math.floor((now-start)/60000));
