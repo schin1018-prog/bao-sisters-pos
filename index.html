@@ -14,7 +14,7 @@ dialog{box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto}
 .stock-photo{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.stock-photo img{width:44px;height:44px;object-fit:cover;border-radius:6px}.stock-photo small{display:block;text-align:left;color:#495e50}
 body.foc-mode{min-height:100vh;background:#f2e9ff;color:#3f235a}body.foc-mode header{background:#4d286d}body.foc-mode .primary{background:#673c8f}body.foc-mode .card,body.foc-mode .slot{background:#fcf8ff;border-color:#cdb5e5}.foc-banner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;background:#4d286d;color:#fff;padding:8px 12px;margin-bottom:10px;border-radius:10px}.foc-banner button{font-weight:700;color:#4d286d}
 </style>
-<header><strong>包姐妹 · 市集 POS</strong><button onclick="show('home')">号码格</button><button onclick="show('sales')">销售记录</button><button onclick="show('stock')">库存管理</button></header>
+<header><strong>包姐妹 · 市集 POS</strong><button onclick="show('home')">点单</button><button onclick="show('sales')">销售记录</button><button onclick="show('stock')">库存管理</button></header>
 <main><div id="notice" role="status"></div><div id="view"></div></main><dialog id="modal"></dialog>
 <script>
 const catalog=[
@@ -81,7 +81,7 @@ function renderOrder(){const o=order();
   const controls=o.method?(l.given<l.q?'<button onclick="give('+i+')">交付 1 '+unit+'</button>':''):'<button onclick="changeQty('+i+',-1)">−</button><button onclick="changeQty('+i+',1)">＋</button>';
   return '<div class="line order-line"><div><strong>'+esc(label(l))+' × '+l.q+'</strong><span class="line-price">'+price+'／'+unit+(l.free?' · FOC':'')+'</span>'+(o.method?'<small>已交 '+l.given+'／'+l.q+'</small>':'')+'</div><div class="line-controls">'+controls+'</div></div>';
  }).join('');
- view.innerHTML='<h1>'+String(o.slot).padStart(2,'0')+' 号 <small>'+state(o)+'</small>'+timing(o)+'</h1>'+(o.method?'<div class="card">'+lines+'<div class="flex"><button class="primary" onclick="giveAll()">全部交付</button></div></div>':'<div class="split"><section>'+renderCatalog()+'</section><aside class="card"><h2>当前订单</h2>'+(lines||'请选择商品')+'<p class="total">'+money(total(o))+'</p><div class="flex"><button onclick="show(\'home\')">挂单／回号码格</button>'+(o.reserved?'<button onclick="releaseReservation()">释放预留</button>':'')+'<button onclick="cancel()">取消单</button><button class="primary" '+(!o.lines.length?'disabled':'')+' onclick="checkout()">结账</button></div></aside></div>');
+ view.innerHTML='<h1>'+String(o.slot).padStart(2,'0')+' 号 <small>'+state(o)+'</small>'+timing(o)+'</h1>'+(o.method?'<div class="card">'+lines+'<div class="flex"><button class="primary" onclick="giveAll()">全部交付</button></div></div>':'<div class="split"><section>'+renderCatalog()+'</section><aside class="card"><h2>当前订单</h2>'+(lines||'请选择商品')+'<p class="total">'+money(total(o))+'</p><div class="flex"><button onclick="show(\'home\')">挂单／回点单</button>'+(o.reserved?'<button onclick="releaseReservation()">释放预留</button>':'')+'<button onclick="cancel()">取消单</button><button class="primary" '+(!o.lines.length?'disabled':'')+' onclick="checkout()">结账</button></div></aside></div>');
 }
 function renderCatalog(){
  const groups=[['hot','♨️ 热食',p=>catalog[p][2]!=='罐'],['frozen','❄️ 冷冻',p=>!!catalog[p][3]],['jar','🫙 罐装',p=>catalog[p][2]==='罐']];
