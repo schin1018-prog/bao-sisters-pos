@@ -32,7 +32,7 @@ const stockOrder=()=>db.sort.filter(p=>catalog[p][2]!=='罐').concat(db.sort.fil
 function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 const money=c=>'RM '+(c/100).toFixed(2), factor=l=>l.frozen?catalog[l.p][3]:1;
-const productSymbol=(p,frozen)=>frozen?'❄️':catalog[p][2]==='罐'?'':'♨️';
+const productSymbol=(p,frozen)=>frozen?'❄️':catalog[p][2]==='罐'?'🫙':'♨️';
 const label=l=>[productSymbol(l.p,l.frozen),catalog[l.p][0]].filter(Boolean).join(' ');
 const sellUnit=l=>l.frozen?'包':catalog[l.p][2];
 const total=o=>o.lines.reduce((s,l)=>s+(l.free?0:catalog[l.p][1]*factor(l)*l.q),0);
@@ -81,7 +81,7 @@ function renderOrder(){const o=order();
  view.innerHTML='<h1>'+String(o.slot).padStart(2,'0')+' 号 <small>'+state(o)+'</small>'+timing(o)+'</h1>'+(o.method?'<div class="card">'+lines+'<div class="flex"><button class="primary" onclick="giveAll()">全部交付</button></div></div>':'<div class="split"><section>'+renderCatalog()+'</section><aside class="card"><h2>当前订单</h2>'+(lines||'请选择商品')+'<p class="total">'+money(total(o))+'</p><div class="flex"><button onclick="show(\'home\')">挂单／回号码格</button>'+(o.reserved?'<button onclick="releaseReservation()">释放预留</button>':'')+'<button onclick="cancel()">取消单</button><button class="primary" '+(!o.lines.length?'disabled':'')+' onclick="checkout()">结账</button></div></aside></div>');
 }
 function renderCatalog(){
- const groups=[['hot','♨️ 热食',p=>catalog[p][2]!=='罐'],['frozen','❄️ 冷冻',p=>!!catalog[p][3]],['jar','罐装',p=>catalog[p][2]==='罐']];
+ const groups=[['hot','♨️ 热食',p=>catalog[p][2]!=='罐'],['frozen','❄️ 冷冻',p=>!!catalog[p][3]],['jar','🫙 罐装',p=>catalog[p][2]==='罐']];
  const selected=foc?focFilter:filter;
  const tabs=foc?groups:[['all','全部'],...groups];
  const buttons=tabs.map(([id,title])=>'<button aria-pressed="'+(selected===id)+'" class="'+(selected===id?'primary':'')+'" onclick="setFilter(\''+id+'\')">'+title+'</button>').join('');
