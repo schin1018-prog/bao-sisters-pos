@@ -1,0 +1,183 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>包姐妹 · 市集 POS</title>
+<style>
+:root{font:17px system-ui;color:#253a30;background:#f5f2e9}body{margin:0}header{background:#193d32;color:white;padding:18px max(18px,4vw);display:flex;flex-wrap:wrap;align-items:center;gap:14px}header strong{font-size:25px;margin-right:auto}main{max-width:1200px;margin:auto;padding:20px}h1{font-size:26px}h2{font-size:20px}button,input,select{font:inherit;padding:11px;border:1px solid #b8c8bc;border-radius:9px;background:white;color:inherit}button{cursor:pointer;margin:3px;min-height:44px}button:hover{background:#e5eee7}button:disabled{opacity:.48;cursor:default}.primary{background:#24634d;color:white}.primary:hover{background:#174d3a}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.split{display:grid;grid-template-columns:2fr 1fr;gap:16px}.card{background:white;padding:16px;border-radius:15px;border:1px solid #e1e4db}.slot{text-align:left;min-height:88px}.slot b{font-size:24px;display:block}.active{background:#fff1cf}.paid{background:#e3f1e5}.low{color:#a64c00}.muted{color:#666}.flex{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.line{border-bottom:1px solid #ddd;padding:9px 0}.total{font-size:23px;font-weight:bold}dialog{max-width:min(540px,90vw);border:0;border-radius:15px;box-shadow:0 12px 80px #0005}dialog::backdrop{background:#0006}.keys{display:grid;grid-template-columns:repeat(3,1fr)}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:9px;border-bottom:1px solid #ddd}.scroll{overflow:auto}#notice{min-height:1.4em;color:#9b430a}@media(max-width:760px){.split{grid-template-columns:1fr}main{padding:12px}}
+header button{color:#193d32;background:#fff;font-weight:700}header button:hover{color:#193d32;background:#e5eee7}
+.photo-frame{display:grid;place-items:center;aspect-ratio:4/3;width:100%;margin:0 0 8px;overflow:hidden;border:1px dashed #aebcb1;border-radius:8px;background:#eef2ec;color:#4f6559;font-size:.85rem}.photo-frame img{width:100%;height:100%;min-height:0;object-fit:cover}
+#change{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:12px 0;padding:10px 14px;border-radius:10px;background:#e3f1e5;color:#193d32;font-weight:700}#change strong{font-size:clamp(1.75rem,5vw,2.5rem);font-variant-numeric:tabular-nums}#change:empty{display:none}
+dialog{box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto}
+.product-name{display:flex;align-items:baseline;gap:.3em}.product-symbol{flex:none}.product-price{display:block;white-space:nowrap}
+.order-line{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}.line-controls{display:flex;flex-shrink:0}.line-price{display:block;white-space:nowrap;color:#495e50;font-size:.9rem}
+.product-group{margin:16px 0 24px}.product-group h2{margin:0 0 8px}.foc-status{padding:10px 12px;background:#fff1cf;border-radius:8px;font-weight:700}
+.product-group .grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}.product-group .slot{min-width:0;width:100%;margin:0;max-width:220px}.photo-frame{max-height:135px}.order-timing{display:block;margin-top:5px;font-size:.85rem;color:#495e50}.order-timing b{display:inline;font-size:inherit}
+.stock-toolbar{margin:12px 0}.stock-table{min-width:760px}.stock-table td,.stock-table th{padding:6px 8px}.stock-table th:first-child{white-space:nowrap}.stock-active{background:#e8f1e8}.stock-cell{min-width:72px;margin:0}.stock-cell.entered{font-weight:700;border-color:#24634d}.stock-keypad button{min-height:52px}.stock-entry{display:block;background:#eef4ee;padding:10px 14px;border-radius:8px;font-size:1.8rem;font-weight:700;min-height:1.5em}.stock-key-actions{margin-top:10px}
+</style>
+<header><strong>包姐妹 · 市集 POS</strong><button onclick="show('home')">号码格</button><button onclick="show('sales')">销售记录</button><button onclick="show('stock')">库存管理</button></header>
+<main><div id="notice" role="status"></div><div id="view"></div></main><dialog id="modal"></dialog>
+<script>
+const catalog=[
+ ['虾米辣椒',1590,'罐'],['巧克力卷',490,'粒',4],['蔓越莓卷',490,'粒',4],
+ ['红糖红枣',390,'粒',4],['豆沙麻薯',450,'粒',4],['芋泥卷',390,'粒',4],
+ ['香菜叉烧包',450,'粒'],['鹌鹑蛋肉包',490,'粒'],['芝麻叉烧烙饼',450,'片'],
+ ['芝麻椒盐青葱饼',450,'片'],['生煎包',450,'粒']
+];
+const view=document.querySelector('#view'), notice=document.querySelector('#notice'), modal=document.querySelector('#modal');
+const key='bao-sisters-market-v1';
+let db=JSON.parse(localStorage.getItem(key)||'null')||{orders:[],stock:catalog.map(()=>0),moves:[],seq:{},sort:catalog.map((_,i)=>i),photos:{}};
+let page='home', current=null, filter='all', foc=false, focFilter='hot', day=today(), search='';
+const stockModes=['开档盘点','补货','损耗'];
+const stockDrafts=stockModes.map(()=>new Map());
+let stockMode=0, stockProduct=null, stockInput='';
+const stockOrder=()=>db.sort.filter(p=>catalog[p][2]!=='罐').concat(db.sort.filter(p=>catalog[p][2]==='罐'));
+function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const money=c=>'RM '+(c/100).toFixed(2), factor=l=>l.frozen?catalog[l.p][3]:1;
+const productSymbol=(p,frozen)=>frozen?'❄️':catalog[p][2]==='罐'?'':'♨️';
+const label=l=>[productSymbol(l.p,l.frozen),catalog[l.p][0]].filter(Boolean).join(' ');
+const sellUnit=l=>l.frozen?'包':catalog[l.p][2];
+const total=o=>o.lines.reduce((s,l)=>s+(l.free?0:catalog[l.p][1]*factor(l)*l.q),0);
+const order=()=>db.orders.find(o=>o.id===current);
+const occupied=o=>!o.cancelled&&(!o.method||o.lines.some(l=>l.given<l.q));
+const remaining=p=>db.stock[p]-db.orders.filter(o=>o.reserved&&!o.method&&!o.cancelled).flatMap(o=>o.lines).reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0);
+function tell(s){notice.textContent=s}
+function save(){localStorage.setItem(key,JSON.stringify(db));render()}
+function show(p){
+ if(page==='stock'&&p!=='stock'&&pendingStockCount()){
+  if(!confirm('还有库存数量未保存。现在保存后离开？')||!commitStock())return;
+ }
+ page=p;foc=false;tell('');render();
+}
+function openSlot(n){let o=db.orders.find(x=>x.slot===n&&occupied(x));if(!o){o={id:Date.now().toString(36)+Math.random().toString(36).slice(2),slot:n,lines:[],history:[]};db.orders.push(o)}current=o.id;filter='all';show('order');save()}
+function state(o){return o.method?(o.lines.every(l=>l.given===l.q)?'已付款 · 已取餐':'已付款 · 待取餐'):o.reserved?'未付款 · 已预留':'未付款 · 点单中'}
+function waitText(start,now=Date.now()){
+ const minutes=Math.max(0,Math.floor((now-start)/60000));
+ const hours=Math.floor(minutes/60);
+ return minutes===0?'等候不足 1 分钟':'已等 '+(hours?hours+' 小时 ':'')+minutes%60+' 分钟';
+}
+function timing(o){
+ if(!occupied(o))return '';
+ const start=Date.parse(o.startedAt||o.time);
+ if(!Number.isFinite(start))return '';
+ const time=new Date(start).toLocaleTimeString('en-GB',{timeZone:'Asia/Kuala_Lumpur',hour:'2-digit',minute:'2-digit'});
+ return '<span class="order-timing">'+(o.startedAt?'下单 ':'收款 ')+time+' · <b data-wait-since="'+start+'">'+waitText(start)+'</b></span>';
+}
+function refreshWait(){
+ const now=Date.now();
+ document.querySelectorAll('[data-wait-since]').forEach(node=>{node.textContent=waitText(Number(node.dataset.waitSince),now)});
+}
+function stockText(p){let n=remaining(p);return n<=0?'<span class="muted">售罄</span>': '<span class="'+(n<=5?'low':'muted')+'">剩 '+n+' '+catalog[p][2]+'</span>'}
+function render(){
+ if(page==='home'){view.innerHTML='<h1>点号码开单</h1><div class="grid">'+Array.from({length:20},(_,i)=>{let n=i+1,o=db.orders.find(x=>x.slot===n&&occupied(x));return '<button class="slot '+(o?(o.method?'paid':'active'):'')+'" onclick="openSlot('+n+')"><b>'+String(n).padStart(2,'0')+'</b>'+(o?state(o)+timing(o):'可开单')+'</button>'}).join('')+'</div>';return}
+ if(page==='order'){renderOrder();return}
+ if(page==='stock'){renderStock();return}
+ renderSales();
+}
+function renderOrder(){const o=order();
+ const lines=o.lines.map((l,i)=>{
+  const unit=sellUnit(l), price=money(l.free?0:catalog[l.p][1]*factor(l));
+  const controls=o.method?(l.given<l.q?'<button onclick="give('+i+')">交付 1 '+unit+'</button>':''):'<button onclick="changeQty('+i+',-1)">−</button><button onclick="changeQty('+i+',1)">＋</button>';
+  return '<div class="line order-line"><div><strong>'+esc(label(l))+' × '+l.q+'</strong><span class="line-price">'+price+'／'+unit+(l.free?' · FOC':'')+'</span>'+(o.method?'<small>已交 '+l.given+'／'+l.q+'</small>':'')+'</div><div class="line-controls">'+controls+'</div></div>';
+ }).join('');
+ view.innerHTML='<h1>'+String(o.slot).padStart(2,'0')+' 号 <small>'+state(o)+'</small>'+timing(o)+'</h1>'+(o.method?'<div class="card">'+lines+'<div class="flex"><button class="primary" onclick="giveAll()">全部交付</button></div></div>':'<div class="split"><section>'+renderCatalog()+'</section><aside class="card"><h2>当前订单</h2>'+(lines||'请选择商品')+'<p class="total">'+money(total(o))+'</p><div class="flex"><button onclick="show(\'home\')">挂单／回号码格</button>'+(o.reserved?'<button onclick="releaseReservation()">释放预留</button>':'')+'<button onclick="cancel()">取消单</button><button class="primary" '+(!o.lines.length?'disabled':'')+' onclick="checkout()">结账</button></div></aside></div>');
+}
+function renderCatalog(){
+ const groups=[['hot','♨️ 热食',p=>catalog[p][2]!=='罐'],['frozen','❄️ 冷冻',p=>!!catalog[p][3]],['jar','罐装',p=>catalog[p][2]==='罐']];
+ const selected=foc?focFilter:filter;
+ const tabs=foc?groups:[['all','全部'],...groups];
+ const buttons=tabs.map(([id,title])=>'<button aria-pressed="'+(selected===id)+'" class="'+(selected===id?'primary':'')+'" onclick="setFilter(\''+id+'\')">'+title+'</button>').join('');
+ const sections=groups.filter(([id])=>selected==='all'||selected===id).map(([id,title,includes])=>'<div class="product-group"><h2>'+title+'</h2><div class="grid">'+db.sort.filter(includes).map(p=>catalogButton(p,id==='frozen')).join('')+'</div></div>').join('');
+ return (foc?'<p class="foc-status">FOC 赠送 · 请选择一项商品</p>':'')+'<div class="flex">'+buttons+'<button onclick="toggleFoc()">'+(foc?'取消 FOC':'＋ FOC')+'</button></div>'+sections;
+}
+function catalogButton(p,f){const [name,price,unit,pack]=catalog[p],photo=db.photos[p];
+ const frame='<span class="photo-frame">'+(photo?'<img alt="" src="'+esc(photo)+'">':'商品照片')+'</span>';
+ const type=f?'冷冻':unit==='罐'?'罐装':'热食',symbol=productSymbol(p,f);
+ const priceText=foc?'FOC · RM 0.00':money(price*(f?pack:1));
+ return '<button class="slot" aria-label="'+esc(name+' · '+type+' · '+priceText)+'" '+(remaining(p)<(f?pack:1)?'disabled':'')+' onclick="add('+p+','+f+')">'+frame+'<strong class="product-name">'+(symbol?'<span class="product-symbol" aria-hidden="true">'+symbol+'</span>':'')+'<span>'+esc(name)+'</span></strong><span class="product-price">'+priceText+'</span>'+stockText(p)+'</button>';
+}
+function setFilter(f){if(foc)focFilter=f;else filter=f;render()}
+function toggleFoc(){foc=!foc;if(foc)focFilter=filter==='all'?'hot':filter;render()}
+function available(o,lines){return catalog.every((_,p)=>lines.reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0)<=remaining(p)+(o.reserved?o.lines.reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0):0))}
+function add(p,frozen){const o=order(),lines=o.lines.map(l=>({...l})),l=lines.find(x=>x.p===p&&x.frozen===frozen&&x.free===foc);if(l)l.q++;else lines.push({p,frozen,free:foc,q:1,given:0});if(!available(o,lines)){tell('可卖库存不足');return}o.startedAt??=new Date().toISOString();o.lines=lines;foc=false;tell('');save()}
+function changeQty(i,d){const o=order(),lines=o.lines.map(l=>({...l}));lines[i].q+=d;if(!lines[i].q)lines.splice(i,1);if(d>0&&!available(o,lines)){tell('可卖库存不足');return}o.lines=lines;save()}
+function releaseReservation(){order().reserved=false;save()}
+function cancel(){if(confirm('取消这张未付款订单？')){order().cancelled=true;show('home');save()}}
+function give(i){order().lines[i].given++;save();if(!occupied(order()))show('home')}
+function giveAll(){order().lines.forEach(l=>l.given=l.q);save();show('home')}
+function dialog(html){modal.innerHTML=html+'<button onclick="modal.close()">关闭</button>';modal.showModal()}
+function checkout(){const due=total(order());
+ dialog('<h2>应收 '+money(due)+'</h2><label>实收金额 <input id="cash" inputmode="decimal" size="8"></label><p id="change" role="status"></p><div class="flex"><button onclick="preset('+due+')">刚好</button>'+[10,20,50].map(n=>'<button onclick="preset('+n*100+')">RM'+n+'</button>').join('')+'</div><div class="keys">'+['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>'<button onclick="digit(\''+k+'\')">'+k+'</button>').join('')+'</div><label><input id="handoff" type="checkbox"> 同时标为已取餐</label><div class="flex"><button class="primary" onclick="pay(\'现金\')">确认现金</button><button class="primary" onclick="pay(\'TNG\')">确认 TNG 到账</button></div>');cash.oninput=changeDisplay
+}
+function preset(c){cash.value=(c/100).toFixed(2);changeDisplay()}
+function digit(k){cash.value=k==='⌫'?cash.value.slice(0,-1):cash.value+k;changeDisplay()}
+function cashCents(){return /^\d+(\.\d{0,2})?$/.test(cash.value)?Math.round(Number(cash.value)*100):NaN}
+function changeDisplay(){const c=cashCents()-total(order()),output=document.querySelector('#change');if(Number.isFinite(c)&&c>=0){output.innerHTML='<span>找零</span><strong>'+money(c)+'</strong>'}else{output.textContent='请输入足够的实收金额'}}
+function pay(method){const o=order(),due=total(o);if(!available(o,o.lines)){modal.close();tell('库存不足，请确认商品与数量');return}if(method==='现金'&&!(cashCents()>=due)){changeDisplay();return}const d=today();db.seq[d]=(db.seq[d]||0)+1;o.number=d.replaceAll('-','')+'-'+String(db.seq[d]).padStart(3,'0');o.day=d;o.time=new Date().toISOString();o.method=method;o.received=due;o.reserved=false;o.lines.forEach(l=>{db.stock[l.p]-=l.q*factor(l);if(handoff.checked)l.given=l.q});modal.close();show('home');save()}
+function pendingStockCount(){return new Set(stockDrafts.flatMap(draft=>[...draft.keys()])).size}
+function renderStock(){
+ const products=stockOrder();
+ const rows=products.map((i,pos)=>'<tr><th scope="row">'+esc(catalog[i][0])+'</th><td>'+db.stock[i]+' '+catalog[i][2]+'</td><td>'+(db.stock[i]-remaining(i))+'</td><td>'+stockText(i)+'</td>'+stockModes.map((_,mode)=>stockCell(i,mode)).join('')+'<td><button onclick="choosePhoto('+i+')">照片</button><button aria-label="上移" '+(!pos||catalog[i][2]==='罐'?'disabled':'')+' onclick="move('+pos+',-1)">↑</button><button aria-label="下移" '+(pos>=products.length-2?'disabled':'')+' onclick="move('+pos+',1)">↓</button></td></tr>').join('');
+ const pending=pendingStockCount();
+ view.innerHTML='<h1>库存管理</h1><p>冷冻每包 4 粒，扣同款库存。拆包无需登记。</p><div class="flex stock-toolbar"><button class="primary" onclick="commitStock()" '+(!pending?'disabled':'')+'>保存库存'+(pending?'（'+pending+' 款）':'')+'</button><button onclick="backup()">下载数据备份</button>'+(pending?'<span class="low"><strong>待保存，保存后才能按新库存点单。</strong></span>':'')+'</div><p>直接点要填的格子。留空的格子不会产生变动。同款同时填写时，先盘点，再加补货、扣损耗。</p><div class="scroll"><table class="stock-table"><thead><tr><th>商品</th><th>账面</th><th>预留</th><th>可卖</th>'+stockModes.map(name=>'<th>'+name+'</th>').join('')+'<th>操作</th></tr></thead><tbody>'+rows+'</tbody></table></div><h2>最近库存变动</h2>'+db.moves.slice(-20).reverse().map(m=>'<div class="line">'+esc(m.day+' · '+catalog[m.p][0]+' · '+m.type+' · '+m.delta)+'</div>').join('');
+}
+function stockCell(p,mode){
+ const value=stockDrafts[mode].get(p);
+ return '<td><button class="stock-cell '+(value===undefined?'':'entered')+'" aria-label="'+esc(catalog[p][0]+' '+stockModes[mode])+'" onclick="openStockKeypad('+p+','+mode+')">'+(value??'输入')+'</button></td>';
+}
+function move(pos,d){const products=stockOrder();[products[pos],products[pos+d]]=[products[pos+d],products[pos]];db.sort=products;save()}
+function openStockKeypad(p,mode){
+ stockMode=mode;
+ stockProduct=p;
+ stockInput=String(stockDrafts[stockMode].get(p)??'');
+ const keys=['1','2','3','4','5','6','7','8','9','清空','0','⌫'];
+ const products=stockOrder(),pos=products.indexOf(p);
+ dialog('<h2>'+esc(catalog[p][0])+' · '+stockModes[mode]+'</h2><label for="stock-entry">数量（'+catalog[p][2]+'）</label><output class="stock-entry" id="stock-entry">'+(stockInput||'—')+'</output><div class="keys stock-keypad">'+keys.map(k=>'<button onclick="stockDigit(\''+k+'\')">'+k+'</button>').join('')+'</div><div class="flex stock-key-actions"><button onclick="stageStock(-1)" '+(pos===0?'disabled':'')+'>上一款</button><button onclick="stageStock(0)">完成</button><button class="primary" onclick="stageStock(1)" '+(pos===products.length-1?'disabled':'')+'>下一款</button></div>');
+}
+function stockDigit(k){
+ if(k==='清空')stockInput='';
+ else if(k==='⌫')stockInput=stockInput.slice(0,-1);
+ else if(stockInput.length<9)stockInput=(stockInput+k).replace(/^0+(?=\d)/,'');
+ document.querySelector('#stock-entry').textContent=stockInput||'—';
+}
+function stageStock(step){
+ const p=stockProduct,draft=stockDrafts[stockMode];
+ if(stockInput==='')draft.delete(p);
+ else draft.set(p,Number(stockInput));
+ modal.close();
+ render();
+ const products=stockOrder(), following=products[products.indexOf(p)+step];
+ if(step&&following!==undefined)openStockKeypad(following,stockMode);
+}
+function commitStock(){
+ const balances=[...db.stock],changes=[],date=today();
+ stockDrafts.forEach((draft,mode)=>draft.forEach((q,p)=>{
+  const delta=mode===0?q-balances[p]:mode===1?q:-q;
+  balances[p]+=delta;
+  changes.push({p,day:date,type:stockModes[mode],delta});
+ }));
+ if(!changes.length)return;
+ const invalid=balances.findIndex((q,p)=>!Number.isSafeInteger(q)||q<db.stock[p]-remaining(p));
+ if(invalid!==-1){tell(catalog[invalid][0]+'：保存后的数量会低于已预留数量，请检查输入。');return false}
+ db.stock=balances;
+ db.moves.push(...changes);
+ stockDrafts.forEach(draft=>draft.clear());
+ tell('已保存库存调整。');
+ save();
+ return true;
+}
+function choosePhoto(p){dialog('<h2>'+esc(catalog[p][0])+' · 产品照片</h2><input type="file" accept="image/*" onchange="photoFile('+p+',this.files[0])"><button onclick="delete db.photos['+p+'];modal.close();save()">移除照片</button>')}
+async function photoFile(p,file){if(!file)return;try{const img=await createImageBitmap(file),canvas=document.createElement('canvas'),scale=Math.min(1,420/Math.max(img.width,img.height));canvas.width=img.width*scale;canvas.height=img.height*scale;canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);db.photos[p]=canvas.toDataURL('image/jpeg',.77);img.close();modal.close();save()}catch{modal.close();tell('无法保存照片，请试试 JPG 或 PNG')}}
+function renderSales(){const orders=db.orders.filter(o=>o.method&&o.day===day),sum=method=>orders.filter(o=>!method||o.method===method).reduce((s,o)=>s+o.received,0),stats={};
+ for(const o of orders)for(const l of o.lines){const k=l.p+'-'+l.frozen;const a=stats[k]||={label:label(l),unit:l.frozen?'包':catalog[l.p][2],sold:0,free:0};a[l.free?'free':'sold']+=l.q}
+ view.innerHTML='<h1>销售记录</h1><div class="flex"><input aria-label="销售日期" type="date" value="'+esc(day)+'" onchange="day=this.value;render()"><input aria-label="查单" placeholder="销售单号或商品名" value="'+esc(search)+'" oninput="search=this.value;listOrders()"></div><div class="grid">'+[['实收',money(sum())],['销售单数',orders.length+' 单'],['现金',money(sum('现金'))],['TNG',money(sum('TNG'))]].map(([k,v])=>'<div class="card">'+k+'<div class="total">'+v+'</div></div>').join('')+'</div><h2>商品销量</h2><div class="scroll"><table><tr><th>商品</th><th>售出</th><th>FOC</th></tr>'+Object.values(stats).sort((a,b)=>b.sold-a.sold).map(a=>'<tr><td>'+esc(a.label)+'</td><td>'+a.sold+' '+a.unit+'</td><td>'+a.free+' '+a.unit+'</td></tr>').join('')+'</table></div><h2>订单明细</h2><div id="salesList"></div>';listOrders()
+}
+function listOrders(){document.querySelector('#salesList').innerHTML=db.orders.filter(o=>o.method&&o.day===day&&[o.number,...o.lines.map(label)].some(s=>s.includes(search.trim()))).reverse().map(o=>'<div class="line"><strong>'+o.number+'</strong> · '+new Date(o.time).toLocaleTimeString('en-MY',{timeZone:'Asia/Kuala_Lumpur',hour:'2-digit',minute:'2-digit'})+' · '+o.method+' · '+money(o.received)+' · '+esc(o.lines.map(l=>label(l)+' × '+l.q).join('、'))+' <button onclick="details(\''+o.id+'\')">查看／更正</button></div>').join('')||'没有符合条件的订单'}
+function details(id){current=id;const o=order();dialog('<h2>'+o.number+'</h2><p>'+state(o)+' · '+o.method+' · '+money(o.received)+'</p>'+o.lines.map((l,i)=>'<div class="line">'+esc(label(l))+' × '+l.q+(l.free?' · FOC':'')+' <button onclick="modal.close();correct('+i+')">更正商品</button></div>').join('')+o.history.map(h=>'<p>'+esc(h)+'</p>').join(''))}
+function correct(i){const l=order().lines[i];dialog('<h2>更正 '+esc(label(l))+'</h2><select id="replacement" onchange="diff('+i+')">'+catalog.flatMap((a,p)=>[false,true].filter(f=>!f||a[3]).map(f=>'<option value="'+p+','+Number(f)+'">'+esc(label({p,frozen:f}))+'</option>')).join('')+'</select><p id="difference"></p><input id="reason" placeholder="更正原因"><select id="settled"><option value="0">保留实收并记价差</option><option value="1">已实际补收／退款</option></select><button class="primary" onclick="applyCorrection('+i+')">保存更正</button>');replacement.value=l.p+','+Number(l.frozen);diff(i)}
+function replacementLine(l){const [p,f]=replacement.value.split(',').map(Number);return {...l,p,frozen:!!f}}
+function priceDiff(l,n){return l.free?0:(catalog[n.p][1]*factor(n)-catalog[l.p][1]*factor(l))*l.q}
+function diff(i){const l=order().lines[i];difference.textContent='价差 '+money(priceDiff(l,replacementLine(l)))}
+function applyCorrection(i){const o=order(),l=o.lines[i],n=replacementLine(l),delta=priceDiff(l,n);if(!reason.value.trim()){difference.textContent='请填写更正原因';return}if(l.p===n.p&&l.frozen===n.frozen)return;if(remaining(n.p)+(n.p===l.p?l.q*factor(l):0)<n.q*factor(n)){difference.textContent='更正后的商品库存不足';return}if(settled.value==='1'&&o.received+delta<0){difference.textContent='退款金额超过实收';return}db.stock[l.p]+=l.q*factor(l);db.stock[n.p]-=n.q*factor(n);o.lines[i]=n;if(settled.value==='1')o.received+=delta;o.history.push(today()+' '+new Date().toLocaleTimeString('en-MY',{timeZone:'Asia/Kuala_Lumpur'})+' · '+label(l)+' → '+label(n)+' × '+l.q+' · '+reason.value.trim()+' · 价差 '+money(delta)+' · '+(settled.value==='1'?'已结算':'保留实收'));modal.close();save();details(o.id)}
+function backup(){const url=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='BaoSisters-POS-'+today()+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+render();
+setInterval(refreshWait,1000);
+</script></html>
