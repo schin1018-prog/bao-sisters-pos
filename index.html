@@ -101,7 +101,7 @@ function catalogButton(p,f){const [name,price,unit,pack]=catalog[p],photo=(f?fro
  return '<button class="slot" aria-label="'+esc(name+' · '+type+' · '+priceText)+'" '+(remaining(p)<(f?pack:1)?'disabled':'')+' onclick="add('+p+','+f+')">'+frame+'<strong class="product-name">'+(symbol?'<span class="product-symbol" aria-hidden="true">'+symbol+'</span>':'')+'<span>'+esc(name)+'</span></strong><span class="product-price">'+priceText+'</span>'+stockText(p)+'</button>';
 }
 function setFilter(f){if(foc)focFilter=f;else filter=f;render()}
-function toggleFoc(){foc=!foc;if(foc)focFilter=filter==='all'?'hot':filter;render()}
+function toggleFoc(){foc=!foc;if(foc)focFilter='hot';render()}
 function available(o,lines){return catalog.every((_,p)=>lines.reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0)<=remaining(p)+(o.reserved?o.lines.reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0):0))}
 function add(p,frozen){const o=order(),lines=o.lines.map(l=>({...l})),l=lines.find(x=>x.p===p&&x.frozen===frozen&&x.free===foc);if(l)l.q++;else lines.push({p,frozen,free:foc,q:1,given:0});if(!available(o,lines)){tell('可卖库存不足');return}o.startedAt??=new Date().toISOString();o.lines=lines;tell('');save()}
 function changeQty(i,d){const o=order(),lines=o.lines.map(l=>({...l}));lines[i].q+=d;if(!lines[i].q)lines.splice(i,1);if(d>0&&!available(o,lines)){tell('可卖库存不足');return}o.lines=lines;save()}
