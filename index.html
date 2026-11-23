@@ -12,6 +12,7 @@ dialog{box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto}
 .product-group .grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}.product-group .slot{min-width:0;width:100%;margin:0;max-width:220px}.photo-frame{max-height:135px}.order-timing{display:block;margin-top:5px;font-size:.85rem;color:#495e50}.order-timing b{display:inline;font-size:inherit}
 .stock-toolbar{margin:12px 0}.stock-table{min-width:760px}.stock-table td,.stock-table th{padding:6px 8px}.stock-table th:first-child{white-space:nowrap}.stock-active{background:#e8f1e8}.stock-cell{min-width:72px;margin:0}.stock-cell.entered{font-weight:700;border-color:#24634d}.stock-keypad button{min-height:52px}.stock-entry{display:block;background:#eef4ee;padding:10px 14px;border-radius:8px;font-size:1.8rem;font-weight:700;min-height:1.5em}.stock-key-actions{margin-top:10px}
 .stock-photo{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.stock-photo img{width:44px;height:44px;object-fit:cover;border-radius:6px}.stock-photo small{display:block;text-align:left;color:#495e50}
+body.foc-mode{min-height:100vh;background:#f2e9ff;color:#3f235a}body.foc-mode header{background:#4d286d}body.foc-mode .primary{background:#673c8f}body.foc-mode .card,body.foc-mode .slot{background:#fcf8ff;border-color:#cdb5e5}.foc-banner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;background:#4d286d;color:#fff;padding:8px 12px;margin-bottom:10px;border-radius:10px}.foc-banner button{font-weight:700;color:#4d286d}
 </style>
 <header><strong>包姐妹 · 市集 POS</strong><button onclick="show('home')">号码格</button><button onclick="show('sales')">销售记录</button><button onclick="show('stock')">库存管理</button></header>
 <main><div id="notice" role="status"></div><div id="view"></div></main><dialog id="modal"></dialog>
@@ -68,6 +69,7 @@ function refreshWait(){
 }
 function stockText(p){let n=remaining(p);return n<=0?'<span class="muted">售罄</span>': '<span class="'+(n<=5?'low':'muted')+'">剩 '+n+' '+catalog[p][2]+'</span>'}
 function render(){
+ document.body.classList.toggle('foc-mode',page==='order'&&foc);
  if(page==='home'){view.innerHTML='<h1>点号码开单</h1><div class="grid">'+Array.from({length:20},(_,i)=>{let n=i+1,o=db.orders.find(x=>x.slot===n&&occupied(x));return '<button class="slot '+(o?(o.method?'paid':'active'):'')+'" onclick="openSlot('+n+')"><b>'+String(n).padStart(2,'0')+'</b>'+(o?state(o)+timing(o):'可开单')+'</button>'}).join('')+'</div>';return}
  if(page==='order'){renderOrder();return}
  if(page==='stock'){renderStock();return}
@@ -87,7 +89,7 @@ function renderCatalog(){
  const tabs=foc?groups:[['all','全部'],...groups];
  const buttons=tabs.map(([id,title])=>'<button aria-pressed="'+(selected===id)+'" class="'+(selected===id?'primary':'')+'" onclick="setFilter(\''+id+'\')">'+title+'</button>').join('');
  const sections=groups.filter(([id])=>selected==='all'||selected===id).map(([id,title,includes])=>'<div class="product-group"><h2>'+title+'</h2><div class="grid">'+db.sort.filter(includes).map(p=>catalogButton(p,id==='frozen')).join('')+'</div></div>').join('');
- return (foc?'<p class="foc-status">FOC 赠送 · 请选择一项商品</p>':'')+'<div class="flex">'+buttons+'<button onclick="toggleFoc()">'+(foc?'取消 FOC':'＋ FOC')+'</button></div>'+sections;
+ return (foc?'<div class="foc-banner"><strong>FOC 赠送模式</strong><button onclick="toggleFoc()">结束 FOC</button></div>':'')+'<div class="flex">'+buttons+(foc?'':'<button onclick="toggleFoc()">＋ FOC</button>')+'</div>'+sections;
 }
 function catalogButton(p,f){const [name,price,unit,pack]=catalog[p],photo=db.photos[p];
  const frame='<span class="photo-frame">'+(photo?'<img alt="" src="'+esc(photo)+'">':'商品照片')+'</span>';
@@ -98,7 +100,7 @@ function catalogButton(p,f){const [name,price,unit,pack]=catalog[p],photo=db.pho
 function setFilter(f){if(foc)focFilter=f;else filter=f;render()}
 function toggleFoc(){foc=!foc;if(foc)focFilter=filter==='all'?'hot':filter;render()}
 function available(o,lines){return catalog.every((_,p)=>lines.reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0)<=remaining(p)+(o.reserved?o.lines.reduce((s,l)=>s+(l.p===p?l.q*factor(l):0),0):0))}
-function add(p,frozen){const o=order(),lines=o.lines.map(l=>({...l})),l=lines.find(x=>x.p===p&&x.frozen===frozen&&x.free===foc);if(l)l.q++;else lines.push({p,frozen,free:foc,q:1,given:0});if(!available(o,lines)){tell('可卖库存不足');return}o.startedAt??=new Date().toISOString();o.lines=lines;foc=false;tell('');save()}
+function add(p,frozen){const o=order(),lines=o.lines.map(l=>({...l})),l=lines.find(x=>x.p===p&&x.frozen===frozen&&x.free===foc);if(l)l.q++;else lines.push({p,frozen,free:foc,q:1,given:0});if(!available(o,lines)){tell('可卖库存不足');return}o.startedAt??=new Date().toISOString();o.lines=lines;tell('');save()}
 function changeQty(i,d){const o=order(),lines=o.lines.map(l=>({...l}));lines[i].q+=d;if(!lines[i].q)lines.splice(i,1);if(d>0&&!available(o,lines)){tell('可卖库存不足');return}o.lines=lines;save()}
 function releaseReservation(){order().reserved=false;save()}
 function cancel(){if(confirm('取消这张未付款订单？')){order().cancelled=true;show('home');save()}}
