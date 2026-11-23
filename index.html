@@ -11,6 +11,7 @@ dialog{box-sizing:border-box;max-height:calc(100dvh - 24px);overflow:auto}
 .product-group{margin:16px 0 24px}.product-group h2{margin:0 0 8px}.foc-status{padding:10px 12px;background:#fff1cf;border-radius:8px;font-weight:700}
 .product-group .grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}.product-group .slot{min-width:0;width:100%;margin:0;max-width:220px}.photo-frame{max-height:135px}.order-timing{display:block;margin-top:5px;font-size:.85rem;color:#495e50}.order-timing b{display:inline;font-size:inherit}
 .stock-toolbar{margin:12px 0}.stock-table{min-width:760px}.stock-table td,.stock-table th{padding:6px 8px}.stock-table th:first-child{white-space:nowrap}.stock-active{background:#e8f1e8}.stock-cell{min-width:72px;margin:0}.stock-cell.entered{font-weight:700;border-color:#24634d}.stock-keypad button{min-height:52px}.stock-entry{display:block;background:#eef4ee;padding:10px 14px;border-radius:8px;font-size:1.8rem;font-weight:700;min-height:1.5em}.stock-key-actions{margin-top:10px}
+.stock-photo{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.stock-photo img{width:44px;height:44px;object-fit:cover;border-radius:6px}.stock-photo small{display:block;text-align:left;color:#495e50}
 </style>
 <header><strong>包姐妹 · 市集 POS</strong><button onclick="show('home')">号码格</button><button onclick="show('sales')">销售记录</button><button onclick="show('stock')">库存管理</button></header>
 <main><div id="notice" role="status"></div><div id="view"></div></main><dialog id="modal"></dialog>
@@ -115,13 +116,17 @@ function pay(method){const o=order(),due=total(o);if(!available(o,o.lines)){moda
 function pendingStockCount(){return new Set(stockDrafts.flatMap(draft=>[...draft.keys()])).size}
 function renderStock(){
  const products=stockOrder();
- const rows=products.map((i,pos)=>'<tr><th scope="row">'+esc(catalog[i][0])+'</th><td>'+db.stock[i]+' '+catalog[i][2]+'</td><td>'+(db.stock[i]-remaining(i))+'</td><td>'+stockText(i)+'</td>'+stockModes.map((_,mode)=>stockCell(i,mode)).join('')+'<td><button onclick="choosePhoto('+i+')">照片</button><button aria-label="上移" '+(!pos||catalog[i][2]==='罐'?'disabled':'')+' onclick="move('+pos+',-1)">↑</button><button aria-label="下移" '+(pos>=products.length-2?'disabled':'')+' onclick="move('+pos+',1)">↓</button></td></tr>').join('');
+ const rows=products.map((i,pos)=>'<tr><th scope="row">'+esc(catalog[i][0])+'</th><td>'+db.stock[i]+' '+catalog[i][2]+'</td><td>'+(db.stock[i]-remaining(i))+'</td><td>'+stockText(i)+'</td>'+stockModes.map((_,mode)=>stockCell(i,mode)).join('')+'<td>'+stockPhotoButton(i)+'<button aria-label="上移" '+(!pos||catalog[i][2]==='罐'?'disabled':'')+' onclick="move('+pos+',-1)">↑</button><button aria-label="下移" '+(pos>=products.length-2?'disabled':'')+' onclick="move('+pos+',1)">↓</button></td></tr>').join('');
  const pending=pendingStockCount();
  view.innerHTML='<h1>库存管理</h1><p>冷冻每包 4 粒，扣同款库存。拆包无需登记。</p><div class="flex stock-toolbar"><button class="primary" onclick="commitStock()" '+(!pending?'disabled':'')+'>保存库存'+(pending?'（'+pending+' 款）':'')+'</button><button onclick="backup()">下载数据备份</button>'+(pending?'<span class="low"><strong>待保存，保存后才能按新库存点单。</strong></span>':'')+'</div><p>直接点要填的格子。留空的格子不会产生变动。同款同时填写时，先盘点，再加补货、扣损耗。</p><div class="scroll"><table class="stock-table"><thead><tr><th>商品</th><th>账面</th><th>预留</th><th>可卖</th>'+stockModes.map(name=>'<th>'+name+'</th>').join('')+'<th>操作</th></tr></thead><tbody>'+rows+'</tbody></table></div><h2>最近库存变动</h2>'+db.moves.slice(-20).reverse().map(m=>'<div class="line">'+esc(m.day+' · '+catalog[m.p][0]+' · '+m.type+' · '+m.delta)+'</div>').join('');
 }
 function stockCell(p,mode){
  const value=stockDrafts[mode].get(p);
  return '<td><button class="stock-cell '+(value===undefined?'':'entered')+'" aria-label="'+esc(catalog[p][0]+' '+stockModes[mode])+'" onclick="openStockKeypad('+p+','+mode+')">'+(value??'输入')+'</button></td>';
+}
+function stockPhotoButton(p){
+ const photo=db.photos[p];
+ return '<button class="stock-photo" onclick="choosePhoto('+p+')">'+(photo?'<img alt="" src="'+esc(photo)+'">':'')+'<span>'+(photo?'更换照片<small>已上传</small>':'上传照片<small>未上传</small>')+'</span></button>';
 }
 function move(pos,d){const products=stockOrder();[products[pos],products[pos+d]]=[products[pos+d],products[pos]];db.sort=products;save()}
 function openStockKeypad(p,mode){
