@@ -70,7 +70,7 @@ function refreshWait(){
  const now=Date.now();
  document.querySelectorAll('[data-wait-since]').forEach(node=>{node.textContent=waitText(Number(node.dataset.waitSince),now)});
 }
-function stockText(p){let n=remaining(p);return n<=0?'<span class="muted">售罄</span>': '<span class="'+(n<=5?'low':'muted')+'">剩 '+n+' '+catalog[p][2]+'</span>'}
+function stockText(p){let n=remaining(p);return n<=0?'<span class="muted">0</span>': '<span class="'+(n<=5?'low':'muted')+'">剩 '+n+' '+catalog[p][2]+'</span>'}
 function render(){
  document.body.classList.toggle('foc-mode',page==='order'&&foc);
  if(page==='home'){view.innerHTML='<h1>点号码开单</h1><div class="grid">'+Array.from({length:20},(_,i)=>{let n=i+1,o=db.orders.find(x=>x.slot===n&&occupied(x));return '<button class="slot '+(o?(o.method?'paid':'active'):'')+'" onclick="openSlot('+n+')"><b>'+String(n).padStart(2,'0')+'</b>'+(o?state(o)+timing(o):'可开单')+'</button>'}).join('')+'</div>';return}
